@@ -6,6 +6,7 @@ import { Settings, Users, Shield, Loader2, Plus, X } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { cn, getStatusLabel } from '@/lib/utils'
+import { formatCpf } from '@/lib/auth'
 
 type Tab = 'campaign' | 'users' | 'security'
 
@@ -224,7 +225,7 @@ export default function SettingsPage() {
                       <tr key={tu.id} className="border-b border-gray-800/50">
                         <td className="px-4 py-3 text-white text-sm">{tu.user.name}</td>
                         <td className="px-4 py-3 text-gray-400 text-sm font-mono">
-                          {tu.user.cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}
+                          {formatCpf(tu.user.cpf)}
                         </td>
                         <td className="px-4 py-3">
                           <span className={cn('text-xs px-2 py-0.5 rounded-full border',
@@ -296,12 +297,9 @@ function InviteUserModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({ cpf: '', name: '', password: '', role: 'standard' })
 
-  function formatCpf(value: string) {
+  function handleCpfChange(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 11)
-    if (digits.length <= 3) return digits
-    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`
-    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`
+    setForm(f => ({ ...f, cpf: formatCpf(digits) }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -339,7 +337,7 @@ function InviteUserModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">CPF *</label>
-            <input type="text" value={form.cpf} onChange={e => setForm(f => ({ ...f, cpf: formatCpf(e.target.value) }))} placeholder="000.000.000-00" required
+            <input type="text" value={form.cpf} onChange={e => handleCpfChange(e.target.value)} placeholder="000.000.000-00" required
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
