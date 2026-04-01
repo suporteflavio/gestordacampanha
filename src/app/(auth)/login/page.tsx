@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const currentYear = new Date().getFullYear()
 
   function formatCpf(value: string) {
     const digits = value.replace(/\D/g, '').slice(0, 11)
@@ -144,7 +145,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-gray-500 text-sm mt-6">
-          CampanhaOS © {new Date().getFullYear()}
+          CampanhaOS © {currentYear}
         </p>
       </div>
     </div>

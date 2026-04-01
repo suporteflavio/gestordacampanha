@@ -66,15 +66,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        loginAttempts: 0,
-        lockedUntil: null,
-        lastLogin: new Date(),
-      },
-    })
-
     if (user.isRoot) {
       const accessToken = await signAccessToken({
         userId: user.id,
@@ -85,6 +76,11 @@ export async function POST(request: NextRequest) {
         permissions: {},
       })
       const refreshToken = await signRefreshToken({ userId: user.id, tenantId: null })
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { loginAttempts: 0, lockedUntil: null, lastLogin: new Date() },
+      })
 
       const response = NextResponse.json({
         user: { id: user.id, name: user.name, cpf: user.cpf, isRoot: true },
@@ -110,6 +106,10 @@ export async function POST(request: NextRequest) {
       return response
     }
 
+    if (user.tenantUsers.length === 0) {
+      return NextResponse.json({ error: 'Usuário sem acesso a nenhuma campanha' }, { status: 401 })
+    }
+
     if (user.tenantUsers.length > 1) {
       const tempToken = await signAccessToken({
         userId: user.id,
@@ -120,6 +120,11 @@ export async function POST(request: NextRequest) {
         permissions: {},
       })
       const refreshToken = await signRefreshToken({ userId: user.id, tenantId: null })
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { loginAttempts: 0, lockedUntil: null, lastLogin: new Date() },
+      })
 
       const response = NextResponse.json({
         user: { id: user.id, name: user.name, cpf: user.cpf },
@@ -151,10 +156,6 @@ export async function POST(request: NextRequest) {
       return response
     }
 
-    if (user.tenantUsers.length === 0) {
-      return NextResponse.json({ error: 'Usuário sem acesso a nenhuma campanha' }, { status: 401 })
-    }
-
     const tenantUser = user.tenantUsers[0]
     const permissions = tenantUser.permissions.reduce(
       (acc, p) => {
@@ -180,6 +181,11 @@ export async function POST(request: NextRequest) {
     const refreshToken = await signRefreshToken({
       userId: user.id,
       tenantId: tenantUser.tenantId,
+    })
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { loginAttempts: 0, lockedUntil: null, lastLogin: new Date() },
     })
 
     const response = NextResponse.json({
