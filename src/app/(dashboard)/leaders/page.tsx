@@ -1,0 +1,258 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { Plus, Search, Users } from 'lucide-react'
+import PageHeader from '@/components/ui/PageHeader'
+import EmptyState from '@/components/ui/EmptyState'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { formatPhone, getStatusLabel, getStatusColor, cn } from '@/lib/utils'
+import ContactModal from '@/components/contacts/ContactModal'
+
+interface Contact {
+  id: string
+  name: string
+  cpf: string | null
+  phone: string | null
+  email: string | null
+  type: string
+  status: string
+  engagementScore: number
+  estimatedVotes: number
+  municipality: { name: string } | null
+  neighborhood: string | null
+  influenceGroup: string | null
+  notes: string | null
+}
+
+export default function LeadersPage() {
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editingContact, setEditingContact] = useState<Contact | null>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+
+  useEffect(() => {
+    fetchContacts()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, statusFilter, page])
+
+  async function fetchContacts() {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ type: 'leader', page: String(page), limit: '20' })
+      if (search) params.set('search', search)
+      if (statusFilter) params.set('status', statusFilter)
+      const response = await fetch(`/api/contacts?${params}`)
+      if (!response.ok) throw new Error()
+      const data = await response.json()
+      setContacts(data.contacts)
+      setTotalPages(data.pagination.pages)
+    } catch {
+      toast.error('Erro ao carregar lideranças')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Deseja remover esta liderança?')) return
+    try {
+      const response = await fetch(`/api/contacts/${id}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error()
+      toast.success('Liderança removida')
+      fetchContacts()
+    } catch {
+      toast.error('Erro ao remover liderança')
+    }
+  }
+
+  function handleEdit(contact: Contact) {
+    setEditingContact(contact)
+    setShowModal(true)
+  }
+
+  function handleCloseModal() {
+    setShowModal(false)
+    setEditingContact(null)
+  }
+
+  function handleSaved() {
+    handleCloseModal()
+    fetchContacts()
+  }
+
+  const statusOptions = [
+    { value: '', label: 'Todos os status' },
+    { value: 'confirmed', label: 'Ativo' },
+    { value: 'probable', label: 'Frio' },
+    { value: 'uncertain', label: 'Pendente' },
+    { value: 'negative', label: 'Rompido' },
+  ]
+
+  return (
+    <div>
+      <PageHeader
+        title="Lideranças"
+        description="Gerencie sua rede de lideranças políticas"
+        action={
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+          >
+            <Plus className="w-4 h-4" />
+            Nova Liderança
+          </button>
+        }
+      />
+
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar por nome, CPF ou telefone..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }}
+          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {statusOptions.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <LoadingSpinner size="lg" text="Carregando lideranças..." />
+        </div>
+      ) : contacts.length === 0 ? (
+        <EmptyState
+          icon={<Users className="w-8 h-8" />}
+          title="Nenhuma liderança encontrada"
+          description="Cadastre sua primeira liderança para começar a construir sua rede."
+          action={
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              <Plus className="w-4 h-4" />
+              Cadastrar Liderança
+            </button>
+          }
+        />
+      ) : (
+        <>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-800">
+                  <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium">Nome</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium hidden md:table-cell">Município</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium hidden lg:table-cell">Telefone</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium">Status</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium hidden lg:table-cell">Votos Est.</th>
+                  <th className="text-left px-4 py-3 text-gray-400 text-xs font-medium hidden lg:table-cell">Engajamento</th>
+                  <th className="px-4 py-3 text-gray-400 text-xs font-medium text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contacts.map((contact) => (
+                  <tr key={contact.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition">
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="text-white font-medium text-sm">{contact.name}</p>
+                        {contact.influenceGroup && (
+                          <p className="text-gray-500 text-xs">{contact.influenceGroup}</p>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-sm hidden md:table-cell">
+                      {contact.municipality?.name ?? '-'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-400 text-sm hidden lg:table-cell">
+                      {contact.phone ? formatPhone(contact.phone) : '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={cn('text-xs font-medium', getStatusColor(contact.status))}>
+                        {getStatusLabel(contact.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-300 text-sm hidden lg:table-cell">
+                      {contact.estimatedVotes.toLocaleString('pt-BR')}
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 10 }).map((_, i) => (
+                          <div
+                            key={i}
+                            className={cn('w-1.5 h-4 rounded-sm', i < contact.engagementScore ? 'bg-blue-500' : 'bg-gray-700')}
+                          />
+                        ))}
+                        <span className="text-gray-400 text-xs ml-1">{contact.engagementScore}/10</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEdit(contact)}
+                          className="text-blue-400 hover:text-blue-300 text-xs font-medium transition"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDelete(contact.id)}
+                          className="text-red-400 hover:text-red-300 text-xs font-medium transition"
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-700 transition"
+              >
+                Anterior
+              </button>
+              <span className="text-gray-400 text-sm">Página {page} de {totalPages}</span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-3 py-1.5 bg-gray-800 text-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-700 transition"
+              >
+                Próxima
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {showModal && (
+        <ContactModal
+          type="leader"
+          contact={editingContact}
+          onClose={handleCloseModal}
+          onSaved={handleSaved}
+        />
+      )}
+    </div>
+  )
+}
