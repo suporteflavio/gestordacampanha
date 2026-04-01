@@ -6,7 +6,7 @@ import { Settings, Users, Shield, Loader2, Plus, X } from 'lucide-react'
 import PageHeader from '@/components/ui/PageHeader'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { cn, getStatusLabel } from '@/lib/utils'
-import { formatCpf } from '@/lib/auth'
+import { formatCpf } from '@/lib/utils'
 
 type Tab = 'campaign' | 'users' | 'security'
 

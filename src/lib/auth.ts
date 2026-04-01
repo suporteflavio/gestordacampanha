@@ -2,16 +2,17 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required')
-}
-if (!process.env.JWT_REFRESH_SECRET) {
-  throw new Error('JWT_REFRESH_SECRET environment variable is required')
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET
+  if (!secret) throw new Error('JWT_SECRET environment variable is required')
+  return new TextEncoder().encode(secret)
 }
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET)
-
-const REFRESH_SECRET = new TextEncoder().encode(process.env.JWT_REFRESH_SECRET)
+function getRefreshSecret(): Uint8Array {
+  const secret = process.env.JWT_REFRESH_SECRET
+  if (!secret) throw new Error('JWT_REFRESH_SECRET environment variable is required')
+  return new TextEncoder().encode(secret)
+}
 
 export interface JWTPayload {
   userId: string

@@ -116,3 +116,12 @@ export function getStatusLabel(status: string): string {
   }
   return labels[status] || status
 }
+
+export function formatCpf(cpf: string): string {
+  const digits = cpf.replace(/\D/g, '')
+  return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+}
+
+export function normalizeCpf(cpf: string): string {
+  return cpf.replace(/\D/g, '')
+}

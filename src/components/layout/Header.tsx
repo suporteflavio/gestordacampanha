@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { LogOut, User, Bell, Building2 } from 'lucide-react'
-import { formatCpf } from '@/lib/auth'
+import { formatCpf } from '@/lib/utils'
 
 interface HeaderProps {
   userName: string
