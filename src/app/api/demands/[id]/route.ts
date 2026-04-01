@@ -2,19 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.demand.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Demanda não encontrada' }, { status: 404 })
 
     const body = await request.json()
     const demand = await prisma.demand.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         title: body.title ?? existing.title,
         description: body.description !== undefined ? body.description : existing.description,
@@ -33,17 +34,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.demand.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
-    await prisma.demand.delete({ where: { id: params.id } })
+    await prisma.demand.delete({ where: { id: id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('DELETE demand error:', error)

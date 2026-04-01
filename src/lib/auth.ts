@@ -30,7 +30,7 @@ export async function signAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>) 
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('15m')
-    .sign(JWT_SECRET)
+    .sign(getJwtSecret())
 }
 
 export async function signRefreshToken(payload: { userId: string; tenantId: string | null }) {
@@ -38,12 +38,12 @@ export async function signRefreshToken(payload: { userId: string; tenantId: stri
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(REFRESH_SECRET)
+    .sign(getRefreshSecret())
 }
 
 export async function verifyAccessToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, getJwtSecret())
     return payload as unknown as JWTPayload
   } catch {
     return null
@@ -52,7 +52,7 @@ export async function verifyAccessToken(token: string): Promise<JWTPayload | nul
 
 export async function verifyRefreshToken(token: string): Promise<{ userId: string; tenantId: string | null } | null> {
   try {
-    const { payload } = await jwtVerify(token, REFRESH_SECRET)
+    const { payload } = await jwtVerify(token, getRefreshSecret())
     return payload as unknown as { userId: string; tenantId: string | null }
   } catch {
     return null
@@ -69,7 +69,7 @@ export function getTokenFromRequest(request: NextRequest): string | null {
 }
 
 export async function getServerSession(): Promise<JWTPayload | null> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('access_token')?.value
   if (!token) return null
   return verifyAccessToken(token)

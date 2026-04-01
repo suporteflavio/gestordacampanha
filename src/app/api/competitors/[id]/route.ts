@@ -2,19 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.competitor.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Concorrente não encontrado' }, { status: 404 })
 
     const body = await request.json()
     const competitor = await prisma.competitor.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name: body.name ?? existing.name,
         party: body.party !== undefined ? body.party : existing.party,
@@ -33,17 +34,18 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.competitor.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
-    await prisma.competitor.delete({ where: { id: params.id } })
+    await prisma.competitor.delete({ where: { id: id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('DELETE competitor error:', error)

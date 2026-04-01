@@ -4,14 +4,15 @@ import { prisma } from '@/lib/db'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const contact = await prisma.contact.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
       include: {
         municipality: { select: { name: true, ibgeCode: true } },
         parentLeader: { select: { id: true, name: true } },
@@ -29,21 +30,22 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.contact.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Contato não encontrado' }, { status: 404 })
 
     const body = await request.json()
 
     const contact = await prisma.contact.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         name: body.name ?? existing.name,
         cpf: body.cpf !== undefined ? (body.cpf ? body.cpf.replace(/\D/g, '') : null) : existing.cpf,
@@ -74,18 +76,19 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.contact.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Contato não encontrado' }, { status: 404 })
 
-    await prisma.contact.delete({ where: { id: params.id } })
+    await prisma.contact.delete({ where: { id: id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('DELETE contact error:', error)

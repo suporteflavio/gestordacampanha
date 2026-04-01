@@ -4,20 +4,21 @@ import { prisma } from '@/lib/db'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.transaction.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Lançamento não encontrado' }, { status: 404 })
 
     const body = await request.json()
     const transaction = await prisma.transaction.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         category: body.category ?? existing.category,
         description: body.description ?? existing.description,
@@ -39,18 +40,19 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const session = await getServerSession()
     if (!session?.tenantId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const existing = await prisma.transaction.findFirst({
-      where: { id: params.id, tenantId: session.tenantId },
+      where: { id: id, tenantId: session.tenantId },
     })
     if (!existing) return NextResponse.json({ error: 'Não encontrado' }, { status: 404 })
 
-    await prisma.transaction.delete({ where: { id: params.id } })
+    await prisma.transaction.delete({ where: { id: id } })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('DELETE transaction error:', error)
