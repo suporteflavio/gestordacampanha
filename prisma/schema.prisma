@@ -1,0 +1,443 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== GLOBAL TABLES =====
+
+model Tenant {
+  id             String   @id @default(uuid())
+  cnpj           String   @unique
+  name           String
+  slug           String   @unique
+  logoUrl        String?  @map("logo_url")
+  primaryColor   String   @default("#1a56db") @map("primary_color")
+  secondaryColor String   @default("#7e3af2") @map("secondary_color")
+  plan           String   @default("basic")
+  status         String   @default("active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenantUsers    TenantUser[]
+  contacts       Contact[]
+  transactions   Transaction[]
+  checkins       Checkin[]
+  fuelVouchers   FuelVoucher[]
+  fuelStations   FuelStation[]
+  meetings       Meeting[]
+  demands        Demand[]
+  competitors    Competitor[]
+  voteGoals      VoteGoal[]
+  auditLogs      AuditLog[]
+  documents      Document[]
+  tasks          Task[]
+  teamMembers    TeamMember[]
+
+  @@map("tenants")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  cpf           String    @unique
+  name          String
+  email         String?   @unique
+  phone         String?
+  passwordHash  String    @map("password_hash")
+  totpSecret    String?   @map("totp_secret")
+  isRoot        Boolean   @default(false) @map("is_root")
+  lastLogin     DateTime? @map("last_login")
+  loginAttempts Int       @default(0) @map("login_attempts")
+  lockedUntil   DateTime? @map("locked_until")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  tenantUsers   TenantUser[]
+  auditLogs     AuditLog[]
+  checkins      Checkin[]
+  fuelVouchers  FuelVoucher[] @relation("FuelVoucherBeneficiary")
+  fuelApprovals FuelVoucher[] @relation("FuelVoucherApprover")
+  tasks         Task[]        @relation("TaskAssignee")
+  taskCreated   Task[]        @relation("TaskCreator")
+
+  @@map("users")
+}
+
+model TenantUser {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  role      String   @default("standard") // root, admin, standard
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions Permission[]
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("tenant_users")
+}
+
+model Permission {
+  id           String  @id @default(uuid())
+  tenantUserId String  @map("tenant_user_id")
+  module       String
+  canRead      Boolean @default(false) @map("can_read")
+  canCreate    Boolean @default(false) @map("can_create")
+  canUpdate    Boolean @default(false) @map("can_update")
+  canDelete    Boolean @default(false) @map("can_delete")
+
+  tenantUser TenantUser @relation(fields: [tenantUserId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantUserId, module])
+  @@map("permissions")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String?  @map("tenant_id")
+  userId     String?  @map("user_id")
+  action     String
+  entity     String
+  entityId   String?  @map("entity_id")
+  beforeData Json?    @map("before_data")
+  afterData  Json?    @map("after_data")
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Municipality {
+  id         String   @id @default(uuid())
+  ibgeCode   String   @unique @map("ibge_code")
+  name       String
+  uf         String
+  mesoregion String?
+  lat        Float?
+  lng        Float?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  contacts    Contact[]
+  meetings    Meeting[]
+  demands     Demand[]
+  voteGoals   VoteGoal[]
+  competitors Competitor[]
+  transactions Transaction[]
+  teamMembers TeamMember[]
+
+  @@index([uf])
+  @@map("municipalities")
+}
+
+// ===== BUSINESS TABLES (tenant-scoped) =====
+
+model Contact {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  name           String
+  cpf            String?
+  phone          String?
+  email          String?
+  municipalityId String?  @map("municipality_id")
+  neighborhood   String?
+  address        String?
+  lat            Float?
+  lng            Float?
+  type           String   @default("voter") // voter, leader
+  status         String   @default("confirmed") // confirmed, probable, uncertain, negative
+  engagementScore Int     @default(5) @map("engagement_score")
+  estimatedVotes  Int     @default(0) @map("estimated_votes")
+  parentLeaderId  String? @map("parent_leader_id")
+  influenceGroup  String? @map("influence_group")
+  origin          String?
+  notes           String?
+  captureToken    String? @unique @map("capture_token")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+  parentLeader Contact?      @relation("LeaderHierarchy", fields: [parentLeaderId], references: [id])
+  subLeaders   Contact[]     @relation("LeaderHierarchy")
+  checkins     Checkin[]
+  demands      Demand[]
+
+  @@index([tenantId])
+  @@index([tenantId, type])
+  @@index([tenantId, status])
+  @@index([cpf])
+  @@map("contacts")
+}
+
+model Transaction {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  type           String    // income, expense
+  category       String
+  description    String
+  amount         Decimal   @db.Decimal(12, 2)
+  status         String    @default("pending") // pending, approved, paid, cancelled
+  dueDate        DateTime? @map("due_date")
+  paidAt         DateTime? @map("paid_at")
+  supplier       String?
+  municipalityId String?   @map("municipality_id")
+  receiptUrl     String?   @map("receipt_url")
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, type])
+  @@index([tenantId, status])
+  @@map("transactions")
+}
+
+model Checkin {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  userId    String   @map("user_id")
+  contactId String?  @map("contact_id")
+  meetingId String?  @map("meeting_id")
+  lat       Float
+  lng       Float
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id])
+  meeting Meeting? @relation(fields: [meetingId], references: [id])
+
+  @@index([tenantId])
+  @@index([userId])
+  @@map("checkins")
+}
+
+model FuelStation {
+  id             String  @id @default(uuid())
+  tenantId       String  @map("tenant_id")
+  name           String
+  cnpj           String?
+  address        String?
+  municipalityId String? @map("municipality_id")
+  creditLimit    Decimal @default(0) @db.Decimal(12, 2) @map("credit_limit")
+  gasolinePrice  Decimal @default(0) @db.Decimal(8, 3) @map("gasoline_price")
+  ethanolPrice   Decimal @default(0) @db.Decimal(8, 3) @map("ethanol_price")
+  dieselPrice    Decimal @default(0) @db.Decimal(8, 3) @map("diesel_price")
+  isActive       Boolean @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fuelVouchers FuelVoucher[]
+
+  @@index([tenantId])
+  @@map("fuel_stations")
+}
+
+model FuelVoucher {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  code          String    @unique
+  stationId     String?   @map("station_id")
+  beneficiaryId String?   @map("beneficiary_id")
+  approverId    String?   @map("approver_id")
+  fuelType      String    @map("fuel_type") // gasoline, ethanol, diesel
+  liters        Decimal   @db.Decimal(8, 2)
+  value         Decimal   @db.Decimal(10, 2)
+  status        String    @default("issued") // issued, used, cancelled, expired
+  qrCode        String?   @map("qr_code")
+  issuedAt      DateTime  @default(now()) @map("issued_at")
+  usedAt        DateTime? @map("used_at")
+  expiresAt     DateTime? @map("expires_at")
+  notes         String?
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  station     FuelStation? @relation(fields: [stationId], references: [id])
+  beneficiary User?        @relation("FuelVoucherBeneficiary", fields: [beneficiaryId], references: [id])
+  approver    User?        @relation("FuelVoucherApprover", fields: [approverId], references: [id])
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("fuel_vouchers")
+}
+
+model Meeting {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  title          String
+  type           String    @default("meeting") // meeting, event, visit, rally, other
+  status         String    @default("scheduled") // scheduled, done, cancelled
+  scheduledAt    DateTime  @map("scheduled_at")
+  doneAt         DateTime? @map("done_at")
+  municipalityId String?   @map("municipality_id")
+  address        String?
+  lat            Float?
+  lng            Float?
+  leaderId       String?   @map("leader_id")
+  estimatedCost  Decimal?  @db.Decimal(10, 2) @map("estimated_cost")
+  attendeesCount Int?      @map("attendees_count")
+  committedVotes Int?      @map("committed_votes")
+  notes          String?
+  qrCode         String?   @unique @map("qr_code")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+  checkins     Checkin[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("meetings")
+}
+
+model Demand {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  title          String
+  description    String?
+  category       String   // obras, saúde, educação, assistência social, segurança, infraestrutura, outro
+  status         String   @default("open") // open, in_progress, resolved, archived
+  priority       String   @default("medium") // low, medium, high, urgent
+  municipalityId String?  @map("municipality_id")
+  address        String?
+  requesterId    String?  @map("requester_id") // contact_id
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+  requester    Contact?      @relation(fields: [requesterId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("demands")
+}
+
+model Competitor {
+  id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
+  name            String
+  party           String?
+  position        String?  // cargo
+  municipalityId  String?  @map("municipality_id") // strongest municipality
+  previousVotes   Int?     @map("previous_votes")
+  declaredExpense Decimal? @db.Decimal(12, 2) @map("declared_expense")
+  notes           String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+
+  @@index([tenantId])
+  @@map("competitors")
+}
+
+model VoteGoal {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  municipalityId String   @map("municipality_id")
+  targetVotes    Int      @map("target_votes")
+  currentVotes   Int      @default(0) @map("current_votes")
+  previousVotes  Int?     @map("previous_votes")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality @relation(fields: [municipalityId], references: [id])
+
+  @@unique([tenantId, municipalityId])
+  @@index([tenantId])
+  @@map("vote_goals")
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  category  String   // tse, ata, contract, material, other
+  url       String
+  mimeType  String?  @map("mime_type")
+  size      Int?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("documents")
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  tenantId    String    @map("tenant_id")
+  title       String
+  description String?
+  module      String?
+  entityId    String?   @map("entity_id")
+  assigneeId  String?   @map("assignee_id")
+  creatorId   String?   @map("creator_id")
+  status      String    @default("open") // open, in_progress, done, cancelled
+  priority    String    @default("medium")
+  dueDate     DateTime? @map("due_date")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignee User?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator  User?  @relation("TaskCreator", fields: [creatorId], references: [id])
+
+  @@index([tenantId])
+  @@index([assigneeId])
+  @@map("tasks")
+}
+
+model TeamMember {
+  id             String    @id @default(uuid())
+  tenantId       String    @map("tenant_id")
+  name           String
+  cpf            String?
+  phone          String?
+  role           String
+  contractType   String    @default("voluntary") @map("contract_type") // clt, pj, voluntary
+  municipalityId String?   @map("municipality_id")
+  monthlyAmount  Decimal?  @db.Decimal(10, 2) @map("monthly_amount")
+  startDate      DateTime? @map("start_date")
+  status         String    @default("active") // active, inactive
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  municipality Municipality? @relation(fields: [municipalityId], references: [id])
+
+  @@index([tenantId])
+  @@map("team_members")
+}
